@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catálogo mayoreo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{ --paper:#fff; --panel:#f5f6f8; --line:#e4e6ea; --ink:#16191f; --muted:#6b7280; --faint:#9aa1ad; --signal:#e8590c; --signal-d:#c74a06; --price:#0a8f57; --radius:14px; }
+  *{box-sizing:border-box; max-width:100%}
+  html,body{margin:0; overflow-x:clip}
+  body{ font-family:Inter,system-ui,sans-serif; background:var(--paper); color:var(--ink); line-height:1.5; }
+  h1,h2,h3{ font-family:Archivo,system-ui,sans-serif; letter-spacing:-.02em; margin:0; }
+  .wrap{ max-width:1080px; margin:0 auto; padding:0 14px; }
+  .muted{ color:var(--muted); }
+  .btn{ font-family:Inter; font-weight:600; font-size:15px; border:none; border-radius:11px; padding:11px 16px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:7px; text-decoration:none; transition:transform .08s, background .15s; }
+  .btn:active{ transform:translateY(1px); }
+  .btn-primary{ background:var(--signal); color:#fff; } .btn-primary:hover{ background:var(--signal-d); }
+  .btn-ghost{ background:#fff; color:var(--ink); border:1.5px solid var(--line); } .btn-ghost:hover{ border-color:var(--ink); }
+  .btn-sm{ padding:8px 12px; font-size:13.5px; }
+
+  nav{ position:sticky; top:0; z-index:30; background:rgba(255,255,255,.95); backdrop-filter:blur(8px); border-bottom:1px solid var(--line); }
+  .nav-in{ max-width:1080px; margin:0 auto; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+  .logo{ display:flex; align-items:center; gap:9px; font-family:Archivo; font-weight:900; font-size:20px; }
+  .logo .mark{ width:30px; height:30px; background:var(--ink); color:#fff; display:flex; align-items:center; justify-content:center; border-radius:8px; font-size:16px; }
+  .logo .mark b{ color:var(--signal); }
+  .nav-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .user-chip{ font-size:13px; color:var(--muted); font-weight:600; }
+
+  section{ padding:22px 0 90px; }
+  .sec-head h2{ font-size:clamp(24px,6vw,34px); font-weight:800; }
+  .sec-head p{ color:var(--muted); font-size:15px; margin-top:6px; }
+  .cat-bar{ display:flex; gap:10px; align-items:center; margin-top:16px; flex-wrap:wrap; }
+  .cat-bar input{ flex:1; min-width:0; padding:12px 14px; border:1px solid var(--line); border-radius:12px; font-size:16px; background:#fff; font-family:inherit; }
+  .cat-bar input:focus{ outline:none; border-color:var(--ink); }
+  .cat-count{ color:var(--faint); font-size:13px; white-space:nowrap; }
+
+  .grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:16px; }
+  @media(min-width:620px){ .grid{ grid-template-columns:repeat(3,1fr); } }
+  @media(min-width:900px){ .grid{ grid-template-columns:repeat(4,1fr); } }
+  .prod{ background:#fff; border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; display:flex; flex-direction:column; }
+  .prod .ph{ position:relative; aspect-ratio:1/1; background:var(--panel); overflow:hidden; }
+  .prod .ph img{ width:100%; height:100%; object-fit:cover; display:block; cursor:zoom-in; }
+  .prod .ph .none{ width:100%; height:100%; display:flex; align-items:center; justify-content:center; color:var(--faint); font-family:Archivo; font-weight:800; font-size:26px; opacity:.5; }
+  .prod .ph .cnt{ position:absolute; top:6px; left:6px; background:rgba(22,25,31,.7); color:#fff; font-size:10px; padding:2px 7px; border-radius:20px; }
+  .prod .pb{ padding:11px 12px 13px; display:flex; flex-direction:column; gap:7px; flex:1; }
+  .prod .nm{ font-weight:600; font-size:14px; line-height:1.3; }
+  .prod .pr{ font-family:Archivo; font-weight:800; font-size:18px; margin-top:auto; }
+  .prod .pr small{ display:block; font-family:Inter; font-weight:500; font-size:10.5px; color:var(--faint); }
+  .prod .stk{ font-size:11.5px; color:var(--faint); }
+  .add{ border:1.5px solid var(--ink); background:#fff; color:var(--ink); font-weight:600; border-radius:10px; padding:9px; cursor:pointer; font-family:inherit; font-size:13.5px; }
+  .add.in{ background:var(--signal); border-color:var(--signal); color:#fff; }
+  .estado{ text-align:center; color:var(--faint); padding:50px 16px; }
+
+  footer{ border-top:1px solid var(--line); padding:22px 0 34px; }
+  footer .muted{ font-size:13px; }
+
+  /* barra flotante */
+  .float{ position:fixed; left:12px; right:12px; bottom:12px; z-index:40; }
+  .float .btn{ width:100%; padding:15px; font-size:16px; box-shadow:0 8px 30px rgba(232,89,12,.35); }
+
+  /* panel lateral */
+  .overlay{ position:fixed; inset:0; background:rgba(22,25,31,.45); z-index:50; display:none; }
+  .panel{ position:fixed; top:0; right:0; height:100%; width:min(420px,100%); background:#fff; z-index:60; transform:translateX(100%); transition:transform .28s cubic-bezier(.4,0,.2,1); display:flex; flex-direction:column; }
+  .panel.open{ transform:translateX(0); }
+  .panel > header{ padding:16px; border-bottom:1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .panel > header h3{ font-size:19px; font-weight:800; }
+  .panel .x{ background:none; border:none; font-size:23px; cursor:pointer; color:var(--muted); }
+  .panel .body{ flex:1; overflow-y:auto; padding:14px 16px; }
+  .panel .foot{ border-top:1px solid var(--line); padding:14px 16px; }
+  .fld{ margin-bottom:12px; }
+  .fld label{ font-size:13px; color:var(--muted); display:block; margin-bottom:5px; }
+  .fld input{ width:100%; padding:12px; border:1px solid var(--line); border-radius:11px; font-size:16px; font-family:inherit; }
+  .ri{ display:flex; gap:10px; align-items:center; padding:12px 0; border-bottom:1px solid var(--line); }
+  .qty{ display:inline-flex; align-items:center; border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .qty button{ width:38px; height:36px; border:none; background:#fff; font-size:19px; line-height:1; cursor:pointer; color:var(--ink); }
+  .qty button:active{ background:var(--panel); }
+  .qwrap{ display:flex; justify-content:center; margin:2px 0 1px; }
+  .prod .qty input{ width:50px; } .qty input{ width:50px; border:none; text-align:center; font-size:16px; font-weight:600; font-family:inherit; -moz-appearance:textfield; }
+  .qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button{ -webkit-appearance:none; margin:0; }
+  .tot{ display:flex; justify-content:space-between; font-family:Archivo; font-weight:800; font-size:19px; margin-bottom:12px; }
+  .empty-r{ text-align:center; color:var(--faint); padding:40px 16px; }
+  .tabsw{ display:flex; gap:6px; margin-bottom:14px; }
+  .tabsw button{ flex:1; padding:10px; border:1px solid var(--line); background:#fff; border-radius:10px; font-family:inherit; font-weight:600; font-size:14px; cursor:pointer; }
+  .tabsw button.active{ background:var(--ink); color:#fff; border-color:var(--ink); }
+  .ok-msg{ text-align:center; padding:26px 8px; }
+  .ok-msg .big{ font-family:Archivo; font-weight:800; font-size:22px; margin-bottom:8px; }
+  .visor{ position:fixed; inset:0; background:rgba(16,18,23,.94); z-index:70; display:none; align-items:center; justify-content:center; flex-direction:column; padding:18px; }
+  .visor img{ max-width:92vw; max-height:72vh; border-radius:10px; }
+  .visor .cap{ color:#fff; margin-top:12px; font-weight:600; text-align:center; }
+  .visor .r{ display:flex; gap:12px; margin-top:12px; }
+  .visor button{ background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.3); border-radius:11px; padding:9px 18px; font-size:16px; cursor:pointer; }
+
+  /* extras-reserva */
+  .badge-rojo{ background:#e11d48; color:#fff; font-size:11px; font-weight:800; border-radius:20px; padding:1px 7px; margin-left:2px; }
+  .pasos{ display:grid; grid-template-columns:1fr; gap:16px; margin-top:16px; }
+  @media(min-width:620px){ .pasos{ grid-template-columns:repeat(3,1fr); } }
+  .paso .num{ font-family:Archivo; font-weight:900; font-size:34px; color:var(--signal); line-height:1; }
+  .paso h3{ font-size:17px; margin-top:6px; } .paso p{ color:var(--muted); font-size:14px; margin-top:6px; }
+  .faq details{ border-bottom:1px solid var(--line); }
+  .faq summary{ list-style:none; cursor:pointer; padding:16px 2px; font-family:Archivo; font-weight:700; font-size:16px; display:flex; justify-content:space-between; gap:12px; }
+  .faq summary::-webkit-details-marker{ display:none; }
+  .faq summary .pm{ color:var(--signal); font-size:22px; transition:transform .2s; }
+  .faq details[open] summary .pm{ transform:rotate(45deg); }
+  .faq .ans{ padding:0 2px 16px; color:var(--muted); font-size:15px; }
+  .sec2{ padding:26px 0; border-top:1px solid var(--line); }
+</style>
+</head>
+<body>
+<nav><div class="nav-in">
+  <div class="logo"></div>
+  <div class="nav-actions" id="navActions"></div>
+</div></nav>
+
+<section><div class="wrap">
+  <div class="sec-head"><h2>Catálogo</h2><p>Toca “Agregar” en lo que quieras. Se suma a tu reserva.</p></div>
+  <div class="cat-bar">
+    <input type="text" id="buscar" placeholder="Buscar producto…" oninput="render()">
+    <span class="cat-count" id="count"></span>
+  </div>
+  <div id="grid" class="grid"></div>
+  <div id="estado" class="estado">Cargando catálogo…</div>
+</div></section>
+
+<section class="sec2"><div class="wrap">
+  <div class="sec-head"><h2>Cómo se reserva</h2></div>
+  <div class="pasos">
+    <div class="paso"><div class="num">1</div><h3>Arma tu pedido</h3><p>Busca en el catálogo y agrega lo que necesitas.</p></div>
+    <div class="paso"><div class="num">2</div><h3>Envía la reserva</h3><p>Entra con tu cuenta y manda el pedido.</p></div>
+    <div class="paso"><div class="num">3</div><h3>Recoge y paga</h3><p>Te escribimos por WhatsApp con la hora para recoger y pagar.</p></div>
+  </div>
+</div></section>
+
+<section class="sec2"><div class="wrap" style="max-width:760px">
+  <div class="sec-head"><h2>Preguntas</h2></div>
+  <div class="faq" style="margin-top:12px">
+    <details><summary>¿Cómo pago? <span class="pm">+</span></summary><div class="ans">Pagas en persona cuando vienes a recoger. No se cobra por adelantado.</div></details>
+    <details><summary>¿Hay cantidad mínima? <span class="pm">+</span></summary><div class="ans">Depende del producto. Manda tu reserva y te confirmamos por WhatsApp.</div></details>
+    <details><summary>¿Cuándo recojo? <span class="pm">+</span></summary><div class="ans">Después de enviar la reserva te damos la hora por WhatsApp.</div></details>
+  </div>
+</div></section>
+
+<footer><div class="wrap">
+  <div class="muted">Ferretería al por mayor · Cuba · WhatsApp: +1 786 537 4147</div>
+</div></footer>
+
+<div class="float"><button class="btn btn-primary" onclick="abrirReserva()">🛒 Mi carrito ( <span id="floatN">0</span> )</button></div>
+
+<div class="overlay" id="overlay" onclick="cerrarPaneles()"></div>
+
+<!-- Panel reserva -->
+<aside class="panel" id="panelReserva">
+  <header><h3>🛒 Tu carrito</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
+  <div class="body" id="reservaItems"></div>
+  <div class="foot" id="reservaFoot"></div>
+</aside>
+
+<!-- Panel cuenta -->
+<aside class="panel" id="panelCuenta">
+  <header><h3 id="cuentaTitulo">Mi cuenta</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
+  <div class="body" id="cuentaBody"></div>
+</aside>
+
+<!-- Panel mis reservas -->
+<aside class="panel" id="panelMis">
+  <header><h3>Mis reservas</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
+  <div class="body" id="misBody"></div>
+</aside>
+
+<div class="visor" id="visor">
+  <img id="visorImg" src="" alt="">
+  <div class="cap" id="visorCap"></div>
+  <div class="r"><button onclick="visorMover(-1)">‹</button><button onclick="visorMover(1)">›</button><button onclick="cerrarVisor()">Cerrar ✕</button></div>
+</div>
+
+<script>
+const SUPABASE_URL="https://dkkrbiyidfgsxasdbxjt.supabase.co";
+const SUPABASE_KEY="sb_publishable_gVKtXTwNjGThLtVSMowK1Q_68AmhtgE";
+const WHATSAPP="17865374147";
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let PRODUCTOS=[],RESERVA={},PEND={},MAY_ALM=null,visorFotos=[],visorIdx=0,visorNombre="";
+
+function money(n){return '$'+(Number(n)||0).toLocaleString('es');}
+function sesion(){ try{ return JSON.parse(localStorage.getItem('sesion_lope')||'null'); }catch(_){ return null; } }
+function guardarSesion(s){ localStorage.setItem('sesion_lope', JSON.stringify(s)); pintarNav(); }
+function cerrarSesion(){ localStorage.removeItem('sesion_lope'); pintarNav(); cerrarPaneles(); }
+
+function pintarNav(){
+  const s=sesion(); const cont=document.getElementById('navActions');
+  cont.innerHTML = (s
+    ? `<span class="user-chip">👤 ${s.usuario||''}</span><button class="btn btn-ghost btn-sm" onclick="abrirMisReservas()">Mis reservas <span class="badge-rojo" id="misN" style="display:none">0</span></button>`
+    : `<button class="btn btn-ghost btn-sm" onclick="abrirCuenta()">Entrar</button>`)
+    + `<button class="btn btn-primary btn-sm" onclick="abrirReserva()">🛒 Carrito ( <span id="navN">${totalItems()}</span> )</button>`;
+  const b=document.getElementById('floatN'); if(b)b.textContent=totalItems();
+  try{ actualizarMisN(); }catch(_){}
+}
+
+async function actualizarMisN(){
+  const s=sesion(); const el=document.getElementById('misN'); if(!el) return;
+  if(!s){ el.style.display='none'; return; }
+  try{ const {data}=await sb.from('reservas_mayoreo').select('id',{count:'exact'}).eq('telefono',s.telefono).eq('estado','nueva'); const n=(data||[]).length; if(n>0){ el.textContent=n; el.style.display='inline-block'; } else { el.style.display='none'; } }catch(_){ el.style.display='none'; }
+}
+function dispDe(p){ return Math.max(0, Number(p.stock||0)-Number(p.reservado||0)); }
+async function reservadoPend(){ const m={}; try{ let d=0; for(;;){ const r=await sb.from('reservas_mayoreo').select('items,estado').eq('estado','nueva').range(d,d+999); if(r.error)throw r.error; (r.data||[]).forEach(rr=>(rr.items||[]).forEach(it=>{ m[it.producto_id]=(m[it.producto_id]||0)+Number(it.cantidad||0); })); if(!r.data||r.data.length<1000)break; d+=1000; } }catch(e){} return m; }
+
+async function cargar(){
+  try{
+    const alm=await sb.from('almacenes').select('id,nombre').ilike('nombre','mayoreo%').limit(1); MAY_ALM=(alm.data&&alm.data[0])||null;
+    const prods=[]; {let d=0;for(;;){const r=await sb.from('productos').select('id,nombre,precio_mayoreo').gt('precio_mayoreo',0).order('nombre').range(d,d+999);if(r.error)throw r.error;prods.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
+    const fotos=[]; {let d=0;for(;;){const r=await sb.from('fotos_mayoreo').select('producto_id,url,mostrar_web,orden').eq('mostrar_web',true).order('orden').range(d,d+999);if(r.error)throw r.error;fotos.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
+    const pp={}; fotos.forEach(f=>{(pp[f.producto_id]=pp[f.producto_id]||[]).push(f.url);});
+    const stock={}; if(MAY_ALM){ let d=0; for(;;){ const r=await sb.from('inventario').select('producto_id,cantidad').eq('almacen_id',MAY_ALM.id).range(d,d+999); if(r.error)throw r.error; (r.data||[]).forEach(i=>{ stock[i.producto_id]=(stock[i.producto_id]||0)+Number(i.cantidad||0); }); if(!r.data||r.data.length<1000)break; d+=1000; } }
+    const resv=await reservadoPend();
+    PRODUCTOS=prods.map(p=>({id:p.id,nombre:p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
+    render();
+  }catch(e){ document.getElementById('estado').textContent='No se pudo cargar el catálogo. Revisa la conexión.'; console.error(e); }
+}
+
+function render(){
+  const q=(document.getElementById('buscar').value||'').trim().toLowerCase();
+  let lista=PRODUCTOS.filter(p=>dispDe(p)>0); if(q) lista=lista.filter(p=>p.nombre.toLowerCase().includes(q));
+  const grid=document.getElementById('grid'), estado=document.getElementById('estado'), count=document.getElementById('count');
+  if(!PRODUCTOS.filter(p=>dispDe(p)>0).length){ estado.style.display='block'; estado.textContent='Por ahora no hay productos disponibles.'; grid.innerHTML=''; count.textContent=''; return; }
+  if(!lista.length){ estado.style.display='block'; estado.textContent='Sin resultados para “'+q+'”.'; grid.innerHTML=''; count.textContent=''; return; }
+  estado.style.display='none'; count.textContent=lista.length+' productos';
+  grid.innerHTML=lista.map(p=>{
+    const f=p.fotos[0]; const cnt=p.fotos.length>1?`<span class="cnt">${p.fotos.length}</span>`:'';
+    const ph=f?`<div class="ph">${cnt}<img src="${f}" loading="lazy" onclick='abrirVisor(${JSON.stringify(p.fotos)},0,${JSON.stringify(p.nombre)})'></div>`:`<div class="ph"><div class="none">L.</div></div>`;
+    const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
+    const pend=pendDe(p.id, disp); const total=Number(p.stock||disp);
+    return `<div class="prod">${ph}<div class="pb">
+      <div class="nm">${p.nombre}</div>
+      <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
+      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}</div>
+      <div class="qwrap">
+        <div class="qty">
+          <button type="button" onclick="stepPend(${p.id},-1)">−</button>
+          <input type="number" inputmode="numeric" id="pend-${p.id}" value="${pend}" onchange="setPend(${p.id}, this.value)">
+          <button type="button" onclick="stepPend(${p.id},1)">+</button>
+        </div>
+      </div>
+      <button class="add ${en?'in':''}" id="add-${p.id}" onclick="agregar(${p.id})">Agregar</button>
+    </div></div>`;
+  }).join('');
+}
+
+function actualizarContadores(){ const n=totalItems(); const a=document.getElementById('navN'); if(a)a.textContent=n; const b=document.getElementById('floatN'); if(b)b.textContent=n; }
+// Cantidad "pendiente" del selector (lo que el cliente elige ANTES de tocar Agregar).
+function pendDe(id, disp){ let v=PEND[id]; if(v==null) v=(RESERVA[id]?RESERVA[id].cantidad:1)||1; if(disp!=null) v=Math.min(v, Math.max(1,disp)); return Math.max(1, v); }
+function setPend(id, val){
+  const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
+  const disp=dispDe(p);
+  let c=parseInt(val)||1; if(c<1)c=1; if(c>disp)c=disp>0?disp:1;
+  PEND[id]=c;
+  const inp=document.getElementById('pend-'+id); if(inp) inp.value=c; // actualiza sin re-render (no pierde el foco)
+}
+// El + y el − leen el número ACTUAL y suman/restan desde ahí (uno por toque, sin trabarse).
+function stepPend(id, delta){ setPend(id, pendDe(id) + delta); }
+// Agregar: pone al carrito la cantidad elegida en el selector (la fija, no suma de a uno).
+function agregar(id){
+  const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
+  const disp=dispDe(p);
+  if(disp<=0){ alert('"'+p.nombre+'" se agotó.'); return; }
+  let c=pendDe(id, disp);
+  if(c>disp){ c=disp; alert('Ya no hay más disponible de "'+p.nombre+'".'); }
+  RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c};
+  PEND[id]=c;
+  actualizarContadores();
+  // Actualizar SOLO esta tarjeta (no recargamos la lista, así la pantalla NO se mueve).
+  const total=Number(p.stock||disp);
+  const stk=document.getElementById('stk-'+id); if(stk) stk.textContent=`Disponible · en tu reserva: ${c}`;
+  const inp=document.getElementById('pend-'+id); if(inp) inp.value=c;
+  const add=document.getElementById('add-'+id);
+  if(add){ add.classList.add('in'); }
+}
+// Fijar cantidad directamente desde el catálogo (permite escribir el número)
+function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(c>disp){ alert('Ya no hay más disponible de "'+p.nombre+'".'); c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
+function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c>disp){ alert('Ya no hay más disponible.'); c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; actualizarContadores(); render(); pintarReserva(); }
+function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,0); }
+function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
+
+function abrirPanel(id){ document.getElementById('overlay').style.display='block'; document.getElementById(id).classList.add('open'); }
+function cerrarPaneles(){ document.getElementById('overlay').style.display='none'; ['panelReserva','panelCuenta','panelMis'].forEach(x=>document.getElementById(x).classList.remove('open')); }
+
+function abrirReserva(){ pintarReserva(); abrirPanel('panelReserva'); }
+function pintarReserva(){
+  const items=document.getElementById('reservaItems'), foot=document.getElementById('reservaFoot');
+  const arr=Object.values(RESERVA);
+  if(!arr.length){ items.innerHTML='<div class="empty-r">Tu reserva está vacía.<br>Agrega productos del catálogo.</div>'; foot.innerHTML=''; return; }
+  items.innerHTML=arr.map(x=>`<div class="ri"><div style="flex:1"><div style="font-weight:500;font-size:14px">${x.nombre}</div><div class="muted" style="font-size:13px">${money(x.precio)} c/u</div></div><div class="qty"><button onclick="setCantidad(${x.id},${x.cantidad-1})">−</button><input type="number" value="${x.cantidad}" onchange="setCantidad(${x.id},parseInt(this.value)||0)"><button onclick="setCantidad(${x.id},${x.cantidad+1})">+</button></div></div>`).join('');
+  const s=sesion();
+  foot.innerHTML=`<div class="tot"><span>Total estimado</span><span>${money(totalDinero())}</span></div>`
+    + (s?`<div class="muted" style="font-size:13px;margin-bottom:10px">Reservas como <b>${s.usuario}</b> (${s.telefono})</div>`:'')
+    + `<button class="btn btn-primary" style="width:100%" onclick="enviarReserva()">${s?'Enviar reserva':'Entrar para reservar'}</button>`;
+}
+
+async function enviarReserva(){
+  const arr=Object.values(RESERVA); if(!arr.length) return;
+  const s=sesion();
+  if(!s){ abrirCuenta(); return; } // pide login
+  const btn=document.querySelector('#reservaFoot .btn'); btn.textContent='Revisando…'; btn.disabled=true;
+  try{
+    const resv=await reservadoPend(); let prob=null;
+    for(const x of arr){ const p=PRODUCTOS.find(y=>y.id===x.id); const disp=Math.max(0,Number(p.stock||0)-Number(resv[x.id]||0)); if(x.cantidad>disp){ p.reservado=Number(resv[x.id]||0); prob=(disp<=0)?('"'+p.nombre+'" se agotó'):('ajusté "'+p.nombre+'" a lo que hay disponible'); if(disp<=0)delete RESERVA[x.id]; else RESERVA[x.id].cantidad=disp; } }
+    if(prob){ btn.textContent='Enviar reserva'; btn.disabled=false; alert('Ajusté tu reserva: '+prob); pintarNav(); render(); pintarReserva(); return; }
+  }catch(e){}
+  btn.textContent='Enviando…';
+  const items=arr.map(x=>({producto_id:x.id,nombre:x.nombre,cantidad:x.cantidad,precio:x.precio}));
+  const total=totalDinero();
+  try{
+    const {error}=await sb.from('reservas_mayoreo').insert({nombre:s.usuario, telefono:s.telefono, items, total, estado:'nueva'});
+    if(error)throw error;
+    const resumen=arr.map(x=>`• ${x.nombre} x${x.cantidad}`).join('%0A');
+    const wa=`Hola, reservé a nombre de ${encodeURIComponent(s.usuario)}:%0A${resumen}%0ATotal aprox: ${money(total)}`;
+    document.getElementById('reservaItems').innerHTML=`<div class="ok-msg"><div class="big">✓ Reserva enviada</div><p class="muted">Gracias, ${s.usuario}. Te escribimos por WhatsApp con la hora para recoger y pagar.</p><a class="btn btn-primary" style="margin-top:14px" href="https://wa.me/${WHATSAPP}?text=${wa}" target="_blank">Avisar por WhatsApp</a></div>`;
+    document.getElementById('reservaFoot').innerHTML='';
+    RESERVA={}; pintarNav(); cargar();
+  }catch(e){ btn.textContent='Enviar reserva'; btn.disabled=false; alert('No se pudo enviar: '+(e.message||e)); }
+}
+
+/* ---- CUENTA (entrar / crear) ---- */
+function abrirCuenta(){
+  const s=sesion(); const body=document.getElementById('cuentaBody');
+  document.getElementById('cuentaTitulo').textContent = s? 'Mi cuenta' : 'Entrar o crear cuenta';
+  if(s){
+    body.innerHTML=`<div style="padding:8px 0">
+      <p style="margin:0 0 10px">Sesión de <b>${s.usuario}</b></p>
+      <p class="muted" style="font-size:13px">WhatsApp: ${s.telefono}</p>
+      <button class="btn btn-ghost" style="width:100%;margin-top:16px" onclick="cerrarSesion()">Cerrar sesión</button>
+    </div>`;
+  } else {
+    body.innerHTML=`
+      <div class="tabsw"><button id="tw-entrar" class="active" onclick="modoCuenta('entrar')">Entrar</button><button id="tw-crear" onclick="modoCuenta('crear')">Crear cuenta</button></div>
+      <div id="cuentaForm"></div>`;
+    modoCuenta('entrar');
+  }
+  abrirPanel('panelCuenta');
+}
+function modoCuenta(m){
+  document.getElementById('tw-entrar').classList.toggle('active', m==='entrar');
+  document.getElementById('tw-crear').classList.toggle('active', m==='crear');
+  const f=document.getElementById('cuentaForm');
+  if(m==='entrar'){
+    f.innerHTML=`<div class="fld"><label>WhatsApp</label><input type="tel" id="inTel" placeholder="Tu número"></div>
+      <div class="fld"><label>Contraseña</label><input type="password" id="inPass" placeholder="Tu contraseña"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="entrar()">Entrar</button>`;
+  } else {
+    f.innerHTML=`<div class="fld"><label>Usuario (tu nombre o tu ferretería)</label><input type="text" id="inUser" placeholder="Ej: Ferretería El Clavo"></div>
+      <div class="fld"><label>WhatsApp</label><input type="tel" id="inTel" placeholder="Tu número"></div>
+      <div class="fld"><label>Contraseña</label><input type="password" id="inPass" placeholder="Crea una contraseña"></div>
+      <button class="btn btn-primary" style="width:100%" onclick="crearCuenta()">Crear cuenta</button>`;
+  }
+}
+async function entrar(){
+  const tel=(document.getElementById('inTel').value||'').replace(/[^0-9]/g,'');
+  const pass=(document.getElementById('inPass').value||'').trim();
+  if(!tel||!pass){ alert('Pon tu WhatsApp y tu contraseña.'); return; }
+  try{
+    const {data,error}=await sb.from('clientes').select('*').eq('telefono',tel).maybeSingle();
+    if(error) throw error;
+    if(!data){ alert('No hay cuenta con ese número. Crea una cuenta.'); modoCuenta('crear'); return; }
+    if((data.pass||'')!==pass){ alert('Contraseña incorrecta.'); return; }
+    guardarSesion({usuario:data.usuario||data.nombre||'Cliente', telefono:tel});
+    cerrarPaneles();
+    if(Object.keys(RESERVA).length) abrirReserva();
+  }catch(e){ alert('No se pudo: '+(e.message||e)+' (¿corriste clientes.sql?)'); }
+}
+async function crearCuenta(){
+  const usuario=(document.getElementById('inUser').value||'').trim();
+  const tel=(document.getElementById('inTel').value||'').replace(/[^0-9]/g,'');
+  const pass=(document.getElementById('inPass').value||'').trim();
+  if(!usuario||!tel||!pass){ alert('Llena usuario, WhatsApp y contraseña.'); return; }
+  try{
+    const ya=await sb.from('clientes').select('telefono').eq('telefono',tel).maybeSingle();
+    if(ya.data){ alert('Ya hay una cuenta con ese número. Entra con tu contraseña.'); modoCuenta('entrar'); return; }
+    const {error}=await sb.from('clientes').insert({telefono:tel, usuario, nombre:usuario, pass});
+    if(error) throw error;
+    guardarSesion({usuario, telefono:tel});
+    cerrarPaneles();
+    if(Object.keys(RESERVA).length) abrirReserva();
+  }catch(e){ alert('No se pudo crear: '+(e.message||e)+' (¿corriste clientes.sql?)'); }
+}
+
+/* ---- MIS RESERVAS (del cliente logueado, desde la base) ---- */
+async function abrirMisReservas(){
+  const s=sesion(); const body=document.getElementById('misBody');
+  if(!s){ abrirCuenta(); return; }
+  body.textContent='Cargando…'; abrirPanel('panelMis');
+  try{
+    const {data,error}=await sb.from('reservas_mayoreo').select('*').eq('telefono',s.telefono).order('id',{ascending:false}).limit(50);
+    if(error) throw error;
+    if(!data||!data.length){ body.innerHTML='<div class="empty-r">Todavía no has hecho reservas.</div>'; return; }
+    const estadoTxt=e=> e==='atendida'?'<span style="color:var(--price)">✓ Entregada</span>' : e==='no_vino'?'<span style="color:#b42318">No recogida</span>' : '<span style="color:var(--signal)">Pendiente</span>';
+    body.innerHTML=data.map(r=>{ const items=(r.items||[]).map(it=>`${it.nombre} ×${it.cantidad}`).join('<br>'); const f=(r.creado_en||'').slice(0,10);
+      const quitar = r.estado==='nueva' ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;color:#b42318;border-color:#f1c0c0" onclick="quitarMiReserva(${r.id})">🗑 Quitar reserva</button>` : '';
+      return `<div style="border-bottom:1px solid var(--line);padding:14px 0"><div style="display:flex;justify-content:space-between"><b>${f}</b><span style="color:var(--price);font-weight:800">${money(r.total)}</span></div><div style="font-size:13px;margin:6px 0">${items}</div><div style="font-size:12px">${estadoTxt(r.estado)}</div>${quitar}</div>`;
+    }).join('');
+  }catch(e){ body.innerHTML='<div class="empty-r">No se pudo cargar.</div>'; }
+}
+
+async function quitarMiReserva(id){
+  if(!confirm('¿Quitar esta reserva?')) return;
+  try{ const {error}=await sb.from('reservas_mayoreo').delete().eq('id',id); if(error) throw error; abrirMisReservas(); pintarNav(); cargar(); }
+  catch(e){ alert('No se pudo: '+(e.message||e)); }
+}
+function abrirVisor(fotos,idx,nombre){ visorFotos=fotos||[]; visorIdx=idx||0; visorNombre=nombre||''; pintarVisor(); document.getElementById('visor').style.display='flex'; }
+function pintarVisor(){ document.getElementById('visorImg').src=visorFotos[visorIdx]; document.getElementById('visorCap').textContent=visorNombre+(visorFotos.length>1?`  (${visorIdx+1}/${visorFotos.length})`:''); }
+function visorMover(d){ if(!visorFotos.length)return; visorIdx=(visorIdx+d+visorFotos.length)%visorFotos.length; pintarVisor(); }
+function cerrarVisor(){ document.getElementById('visor').style.display='none'; }
+
+pintarNav(); cargar();
+</script>
+</body>
+</html>
