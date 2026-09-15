@@ -53,6 +53,18 @@
   .prod .pr{ font-family:Archivo; font-weight:800; font-size:18px; margin-top:auto; }
   .prod .pr small{ display:block; font-family:Inter; font-weight:500; font-size:10.5px; color:var(--faint); }
   .prod .stk{ font-size:11.5px; color:var(--faint); }
+  /* Especificaciones: 2 clave visibles + ficha completa desplegable */
+  .prod .spx{ display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--muted); line-height:1.35; }
+  .prod .spx b{ color:var(--ink); font-weight:600; }
+  .prod .spd{ font-size:12px; }
+  .prod .spd summary{ cursor:pointer; color:var(--signal); font-weight:600; font-size:12px; list-style:none; padding:3px 0; }
+  .prod .spd summary::-webkit-details-marker{ display:none; }
+  .prod .spt{ margin-top:5px; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .prod .spr{ display:grid; grid-template-columns:auto 1fr; gap:8px; padding:6px 8px; font-size:11.5px; border-bottom:1px solid var(--line); }
+  .prod .spr:last-child{ border-bottom:none; }
+  .prod .spr:nth-child(odd){ background:var(--panel); }
+  .prod .spk{ color:var(--muted); }
+  .prod .spv{ color:var(--ink); font-weight:600; text-align:right; }
   .add{ border:1.5px solid var(--ink); background:#fff; color:var(--ink); font-weight:600; border-radius:10px; padding:9px; cursor:pointer; font-family:inherit; font-size:13.5px; }
   .add.in{ background:var(--signal); border-color:var(--signal); color:#fff; }
   .estado{ text-align:center; color:var(--faint); padding:50px 16px; }
@@ -212,12 +224,12 @@ async function reservadoPend(){ const m={}; try{ let d=0; for(;;){ const r=await
 async function cargar(){
   try{
     const alm=await sb.from('almacenes').select('id,nombre').ilike('nombre','mayoreo%').limit(1); MAY_ALM=(alm.data&&alm.data[0])||null;
-    const prods=[]; {let d=0;for(;;){const r=await sb.from('productos').select('id,nombre,nombre_web,precio_mayoreo').gt('precio_mayoreo',0).order('nombre').range(d,d+999);if(r.error)throw r.error;prods.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
+    const prods=[]; {let d=0;for(;;){const r=await sb.from('productos').select('id,nombre,nombre_web,especificaciones,precio_mayoreo').gt('precio_mayoreo',0).order('nombre').range(d,d+999);if(r.error)throw r.error;prods.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
     const fotos=[]; {let d=0;for(;;){const r=await sb.from('fotos_mayoreo').select('producto_id,url,mostrar_web,orden').eq('mostrar_web',true).order('orden').range(d,d+999);if(r.error)throw r.error;fotos.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
     const pp={}; fotos.forEach(f=>{(pp[f.producto_id]=pp[f.producto_id]||[]).push(f.url);});
     const stock={}; if(MAY_ALM){ let d=0; for(;;){ const r=await sb.from('inventario').select('producto_id,cantidad').eq('almacen_id',MAY_ALM.id).range(d,d+999); if(r.error)throw r.error; (r.data||[]).forEach(i=>{ stock[i.producto_id]=(stock[i.producto_id]||0)+Number(i.cantidad||0); }); if(!r.data||r.data.length<1000)break; d+=1000; } }
     const resv=await reservadoPend();
-    PRODUCTOS=prods.map(p=>({id:p.id,nombre:(p.nombre_web&&String(p.nombre_web).trim())?String(p.nombre_web).trim():p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
+    PRODUCTOS=prods.map(p=>({id:p.id,especificaciones:p.especificaciones||'',nombre:(p.nombre_web&&String(p.nombre_web).trim())?String(p.nombre_web).trim():p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
     render();
   }catch(e){ document.getElementById('estado').textContent='No se pudo cargar el catálogo. Revisa la conexión.'; console.error(e); }
 }
@@ -234,9 +246,14 @@ function render(){
     const ph=f?`<div class="ph">${cnt}<img src="${f}" loading="lazy" onclick='abrirVisor(${JSON.stringify(p.fotos)},0,${JSON.stringify(p.nombre)})'></div>`:`<div class="ph"><div class="none">L.</div></div>`;
     const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
     const pend=pendDe(p.id, disp); const total=Number(p.stock||disp);
+    const sp=parseSpecs(p.especificaciones);
+    const spTop = sp.length ? `<div class="spx">${sp.slice(0,2).map(s=>`<span>${s.k?`<b>${s.k}:</b> `:''}${s.v}</span>`).join('')}</div>` : '';
+    const spAll = sp.length>2 ? `<details class="spd"><summary>📋 Ver especificaciones</summary><div class="spt">${sp.map(s=>`<div class="spr">${s.k?`<span class="spk">${s.k}</span><span class="spv">${s.v}</span>`:`<span class="spv" style="grid-column:1/-1">${s.v}</span>`}</div>`).join('')}</div></details>` : '';
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}</div>
+      ${spTop}
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
+      ${spAll}
       <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}</div>
       <div class="qwrap">
         <div class="qty">
@@ -388,6 +405,16 @@ async function crearCuenta(){
 }
 
 /* ---- MIS RESERVAS (del cliente logueado, desde la base) ---- */
+// Convierte el texto de especificaciones en pares "Etiqueta: valor" (una por línea).
+function parseSpecs(txt){
+  if(!txt) return [];
+  return String(txt).split(/\r?\n/).map(l=>l.trim()).filter(Boolean).slice(0,14).map(l=>{
+    const i=l.indexOf(':');
+    if(i>0 && i<=28) return {k:esc(l.slice(0,i).trim()), v:esc(l.slice(i+1).trim())};
+    return {k:'', v:esc(l.replace(/^[-•*]\s*/,''))};
+  });
+}
+function esc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function fmtCita(v){
   if(!v) return '';
   try{ const d=new Date(v); if(isNaN(d.getTime())) return v;
