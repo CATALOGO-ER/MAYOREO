@@ -131,7 +131,7 @@
   <div class="pasos">
     <div class="paso"><div class="num">1</div><h3>Arma tu pedido</h3><p>Busca en el catálogo y agrega lo que necesitas.</p></div>
     <div class="paso"><div class="num">2</div><h3>Envía la reserva</h3><p>Entra con tu cuenta y manda el pedido.</p></div>
-    <div class="paso"><div class="num">3</div><h3>Recoge y paga</h3><p>Te escribimos por WhatsApp con la hora para recoger y pagar.</p></div>
+    <div class="paso"><div class="num">3</div><h3>Recoge y paga</h3><p>Recoges en Camagüey, Centro Comercial La Caridad, Estrella Roja. Te escribimos por WhatsApp con la hora.</p></div>
   </div>
 </div></section>
 
@@ -145,7 +145,7 @@
 </div></section>
 
 <footer><div class="wrap">
-  <div class="muted">Ferretería al por mayor · Cuba · WhatsApp: +1 786 537 4147</div>
+  <div class="muted">Ferretería al por mayor · Recogida en Camagüey, Centro Comercial La Caridad, Estrella Roja · WhatsApp: +1 786 537 4147</div>
 </div></footer>
 
 <div class="float"><button class="btn btn-primary" onclick="abrirReserva()">🛒 Mi carrito ( <span id="floatN">0</span> )</button></div>
@@ -184,10 +184,7 @@ const WHATSAPP="17865374147";
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 let PRODUCTOS=[],RESERVA={},PEND={},MAY_ALM=null,visorFotos=[],visorIdx=0,visorNombre="";
 
-function money(n){return '$'+(Number(n)||0).toLocaleString('es');}
-function fmtCita(v){ if(!v) return ''; try{ const d=new Date(v); if(isNaN(d.getTime())) return v; return d.toLocaleString('es',{weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'}); }catch(_){ return v; } }
-const DIR_RECOGIDA='Centro Comercial La Caridad (Estrella Roja), Camagüey';
-const MAPA_RECOGIDA='https://maps.google.com/?q=21.374018,-77.915894';
+function money(n){return '$'+(Number(n)||0).toLocaleString('es')+' CUP';}
 function sesion(){ try{ return JSON.parse(localStorage.getItem('sesion_lope')||'null'); }catch(_){ return null; } }
 function guardarSesion(s){ localStorage.setItem('sesion_lope', JSON.stringify(s)); pintarNav(); }
 function cerrarSesion(){ localStorage.removeItem('sesion_lope'); pintarNav(); cerrarPaneles(); }
@@ -218,7 +215,7 @@ async function cargar(){
     const pp={}; fotos.forEach(f=>{(pp[f.producto_id]=pp[f.producto_id]||[]).push(f.url);});
     const stock={}; if(MAY_ALM){ let d=0; for(;;){ const r=await sb.from('inventario').select('producto_id,cantidad').eq('almacen_id',MAY_ALM.id).range(d,d+999); if(r.error)throw r.error; (r.data||[]).forEach(i=>{ stock[i.producto_id]=(stock[i.producto_id]||0)+Number(i.cantidad||0); }); if(!r.data||r.data.length<1000)break; d+=1000; } }
     const resv=await reservadoPend();
-    PRODUCTOS=prods.map(p=>({id:p.id,nombre:p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
+    PRODUCTOS=prods.map(p=>({id:p.id,nombre:(p.nombre_web&&String(p.nombre_web).trim())?String(p.nombre_web).trim():p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
     render();
   }catch(e){ document.getElementById('estado').textContent='No se pudo cargar el catálogo. Revisa la conexión.'; console.error(e); }
 }
@@ -389,6 +386,12 @@ async function crearCuenta(){
 }
 
 /* ---- MIS RESERVAS (del cliente logueado, desde la base) ---- */
+function fmtCita(v){
+  if(!v) return '';
+  try{ const d=new Date(v); if(isNaN(d.getTime())) return v;
+    return d.toLocaleString('es',{weekday:'short',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+  }catch(_){ return v; }
+}
 async function abrirMisReservas(){
   const s=sesion(); const body=document.getElementById('misBody');
   if(!s){ abrirCuenta(); return; }
@@ -400,8 +403,8 @@ async function abrirMisReservas(){
     const estadoTxt=e=> e==='atendida'?'<span style="color:var(--price)">✓ Entregada</span>' : e==='no_vino'?'<span style="color:#b42318">No recogida</span>' : '<span style="color:var(--signal)">Pendiente</span>';
     body.innerHTML=data.map(r=>{ const items=(r.items||[]).map(it=>`${it.nombre} ×${it.cantidad}`).join('<br>'); const f=(r.creado_en||'').slice(0,10);
       const quitar = r.estado==='nueva' ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;color:#b42318;border-color:#f1c0c0" onclick="quitarMiReserva(${r.id})">🗑 Quitar reserva</button>` : '';
-      const recog = r.cita ? `<div style="font-size:13px;margin:6px 0;color:var(--price);font-weight:800">📅 Recogida: ${fmtCita(r.cita)}</div><div style="font-size:12px;margin:2px 0 4px"><a href="${MAPA_RECOGIDA}" target="_blank" style="color:var(--signal);font-weight:700">📍 ${DIR_RECOGIDA} · Ver mapa</a></div>` : '';
-      return `<div style="border-bottom:1px solid var(--line);padding:14px 0"><div style="display:flex;justify-content:space-between"><b>${f}</b><span style="color:var(--price);font-weight:800">${money(r.total)}</span></div><div style="font-size:13px;margin:6px 0">${items}</div>${recog}<div style="font-size:12px">${estadoTxt(r.estado)}</div>${quitar}</div>`;
+      const cita = r.cita ? `<div style="font-size:13px;margin-top:6px;color:var(--signal);font-weight:800">📅 Recogida: ${fmtCita(r.cita)}</div>` : '';
+      return `<div style="border-bottom:1px solid var(--line);padding:14px 0"><div style="display:flex;justify-content:space-between"><b>${f}</b><span style="color:var(--price);font-weight:800">${money(r.total)}</span></div><div style="font-size:13px;margin:6px 0">${items}</div><div style="font-size:12px">${estadoTxt(r.estado)}</div>${cita}${quitar}</div>`;
     }).join('');
   }catch(e){ body.innerHTML='<div class="empty-r">No se pudo cargar.</div>'; }
 }
