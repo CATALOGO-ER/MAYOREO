@@ -53,18 +53,18 @@
   .prod .pr{ font-family:Archivo; font-weight:800; font-size:18px; margin-top:auto; }
   .prod .pr small{ display:block; font-family:Inter; font-weight:500; font-size:10.5px; color:var(--faint); }
   .prod .stk{ font-size:11.5px; color:var(--faint); }
-  /* Especificaciones: 2 clave visibles + ficha completa desplegable */
-  .prod .spx{ display:flex; flex-direction:column; gap:2px; font-size:11.5px; color:var(--muted); line-height:1.35; }
-  .prod .spx b{ color:var(--ink); font-weight:600; }
-  .prod .spd{ font-size:12px; }
-  .prod .spd summary{ cursor:pointer; color:var(--signal); font-weight:600; font-size:12px; list-style:none; padding:3px 0; }
-  .prod .spd summary::-webkit-details-marker{ display:none; }
-  .prod .spt{ margin-top:5px; border:1px solid var(--line); border-radius:8px; overflow:hidden; }
-  .prod .spr{ display:grid; grid-template-columns:auto 1fr; gap:8px; padding:6px 8px; font-size:11.5px; border-bottom:1px solid var(--line); }
-  .prod .spr:last-child{ border-bottom:none; }
-  .prod .spr:nth-child(odd){ background:var(--panel); }
-  .prod .spk{ color:var(--muted); }
-  .prod .spv{ color:var(--ink); font-weight:600; text-align:right; }
+  /* Botón "!" al lado del nombre: solo aparece si el producto tiene especificaciones */
+  .spbtn{ display:inline-flex; align-items:center; justify-content:center; width:19px; height:19px; margin-left:6px;
+    border-radius:50%; border:1.5px solid var(--signal); background:#fff; color:var(--signal);
+    font-family:Archivo,sans-serif; font-weight:800; font-size:12px; line-height:1; cursor:pointer; vertical-align:middle; padding:0; }
+  .spbtn:active{ background:var(--signal); color:#fff; }
+  /* Tabla de especificaciones dentro del panel */
+  .spt{ border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+  .spr{ display:grid; grid-template-columns:auto 1fr; gap:10px; padding:10px 12px; font-size:14px; border-bottom:1px solid var(--line); }
+  .spr:last-child{ border-bottom:none; }
+  .spr:nth-child(odd){ background:var(--panel); }
+  .spk{ color:var(--muted); }
+  .spv{ color:var(--ink); font-weight:600; text-align:right; }
   .add{ border:1.5px solid var(--ink); background:#fff; color:var(--ink); font-weight:600; border-radius:10px; padding:9px; cursor:pointer; font-family:inherit; font-size:13.5px; }
   .add.in{ background:var(--signal); border-color:var(--signal); color:#fff; }
   .estado{ text-align:center; color:var(--faint); padding:50px 16px; }
@@ -185,6 +185,11 @@
   <div class="body" id="misBody"></div>
 </aside>
 
+<aside class="panel" id="panelSpecs">
+  <header><h3 id="specsTitulo">Especificaciones</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
+  <div class="body" id="specsBody"></div>
+</aside>
+
 <div class="visor" id="visor">
   <img id="visorImg" src="" alt="">
   <div class="cap" id="visorCap"></div>
@@ -247,13 +252,10 @@ function render(){
     const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
     const pend=pendDe(p.id, disp); const total=Number(p.stock||disp);
     const sp=parseSpecs(p.especificaciones);
-    const spTop = sp.length ? `<div class="spx">${sp.slice(0,2).map(s=>`<span>${s.k?`<b>${s.k}:</b> `:''}${s.v}</span>`).join('')}</div>` : '';
-    const spAll = sp.length>2 ? `<details class="spd"><summary>📋 Ver especificaciones</summary><div class="spt">${sp.map(s=>`<div class="spr">${s.k?`<span class="spk">${s.k}</span><span class="spv">${s.v}</span>`:`<span class="spv" style="grid-column:1/-1">${s.v}</span>`}</div>`).join('')}</div></details>` : '';
+    const btnSp = sp.length ? `<button type="button" class="spbtn" title="Ver especificaciones" onclick="verSpecs(${p.id})">!</button>` : '';
     return `<div class="prod">${ph}<div class="pb">
-      <div class="nm">${p.nombre}</div>
-      ${spTop}
+      <div class="nm">${p.nombre}${btnSp}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      ${spAll}
       <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}</div>
       <div class="qwrap">
         <div class="qty">
@@ -303,7 +305,7 @@ function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,
 function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
 
 function abrirPanel(id){ document.getElementById('overlay').style.display='block'; document.getElementById(id).classList.add('open'); }
-function cerrarPaneles(){ document.getElementById('overlay').style.display='none'; ['panelReserva','panelCuenta','panelMis'].forEach(x=>document.getElementById(x).classList.remove('open')); }
+function cerrarPaneles(){ document.getElementById('overlay').style.display='none'; ['panelReserva','panelCuenta','panelMis','panelSpecs'].forEach(x=>document.getElementById(x).classList.remove('open')); }
 
 function abrirReserva(){ pintarReserva(); abrirPanel('panelReserva'); }
 function pintarReserva(){
@@ -405,6 +407,18 @@ async function crearCuenta(){
 }
 
 /* ---- MIS RESERVAS (del cliente logueado, desde la base) ---- */
+// Abre el panel con las especificaciones del producto (botón ! al lado del nombre).
+function verSpecs(id){
+  const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
+  const sp=parseSpecs(p.especificaciones);
+  document.getElementById('specsTitulo').textContent=p.nombre;
+  const body=document.getElementById('specsBody');
+  body.innerHTML = sp.length
+    ? `<div class="spt">${sp.map(x=>`<div class="spr">${x.k?`<span class="spk">${x.k}</span><span class="spv">${x.v}</span>`:`<span class="spv" style="grid-column:1/-1;text-align:left">${x.v}</span>`}</div>`).join('')}</div>`
+    : '<div class="muted">Sin especificaciones.</div>';
+  document.getElementById('overlay').style.display='block';
+  document.getElementById('panelSpecs').classList.add('open');
+}
 // Convierte el texto de especificaciones en pares "Etiqueta: valor" (una por línea).
 function parseSpecs(txt){
   if(!txt) return [];
