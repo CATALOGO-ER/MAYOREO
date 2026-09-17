@@ -268,7 +268,7 @@ function render(){
   grid.innerHTML=lista.map(p=>{
     const f=p.fotos[0]; const cnt=p.fotos.length>1?`<span class="cnt">${p.fotos.length}</span>`:'';
     const av=AVISOS[p.id];
-    const tag = av==='nuevo' ? '<span class="tag tag-new">NUEVO</span>' : (av==='volvio' ? '<span class="tag tag-back">YA DISPONIBLE</span>' : '');
+    const tag = av==='volvio' ? '<span class="tag tag-back">YA DISPONIBLE</span>' : '';
     const ph=f?`<div class="ph">${tag}${cnt}<img src="${f}" loading="lazy" onclick='abrirVisor(${JSON.stringify(p.fotos)},0,${JSON.stringify(p.nombre)})'></div>`:`<div class="ph">${tag}<div class="none">L.</div></div>`;
     const disp=dispDe(p); const en=RESERVA[p.id]?RESERVA[p.id].cantidad:0;
     const pend=pendDe(p.id, disp); const total=Number(p.stock||disp);
