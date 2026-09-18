@@ -235,7 +235,7 @@ async function reservadoPend(){ const m={}; try{ let d=0; for(;;){ const r=await
 async function cargar(){
   try{
     const alm=await sb.from('almacenes').select('id,nombre').ilike('nombre','mayoreo%').limit(1); MAY_ALM=(alm.data&&alm.data[0])||null;
-    const prods=[]; {let d=0;for(;;){const r=await sb.from('productos').select('id,nombre,nombre_web,especificaciones,min_mayoreo,precio_mayoreo').gt('precio_mayoreo',0).order('nombre').range(d,d+999);if(r.error)throw r.error;prods.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
+    const prods=[]; {let d=0;for(;;){const r=await sb.from('productos').select('id,nombre,nombre_web,especificaciones,min_mayoreo,multiplo_mayoreo,precio_mayoreo').gt('precio_mayoreo',0).order('nombre').range(d,d+999);if(r.error)throw r.error;prods.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;}}
     // Historial de ENTRADAS: sirve para saber si un producto es nuevo o si volvió a entrar.
     const ingresos=[]; try{ let d=0;for(;;){const r=await sb.from('mayoreo_movimientos').select('producto_id,cant_antes,cant_despues,creado_en').eq('tipo','ingreso').order('creado_en').range(d,d+999);if(r.error)break;ingresos.push(...(r.data||[]));if(!r.data||r.data.length<1000)break;d+=1000;} }catch(_){}
     AVISOS={};
@@ -253,7 +253,7 @@ async function cargar(){
     const pp={}; fotos.forEach(f=>{(pp[f.producto_id]=pp[f.producto_id]||[]).push(f.url);});
     const stock={}; if(MAY_ALM){ let d=0; for(;;){ const r=await sb.from('inventario').select('producto_id,cantidad').eq('almacen_id',MAY_ALM.id).range(d,d+999); if(r.error)throw r.error; (r.data||[]).forEach(i=>{ stock[i.producto_id]=(stock[i.producto_id]||0)+Number(i.cantidad||0); }); if(!r.data||r.data.length<1000)break; d+=1000; } }
     const resv=await reservadoPend();
-    PRODUCTOS=prods.map(p=>({id:p.id,min:Math.max(1,Number(p.min_mayoreo)||1),especificaciones:p.especificaciones||'',nombre:(p.nombre_web&&String(p.nombre_web).trim())?String(p.nombre_web).trim():p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
+    PRODUCTOS=prods.map(p=>({id:p.id,min:Math.max(1,Number(p.min_mayoreo)||1),mul:Math.max(1,Number(p.multiplo_mayoreo)||1),especificaciones:p.especificaciones||'',nombre:(p.nombre_web&&String(p.nombre_web).trim())?String(p.nombre_web).trim():p.nombre,precio:Number(p.precio_mayoreo||0),fotos:pp[p.id]||[],stock:Number(stock[p.id]||0),reservado:Number(resv[p.id]||0)}));
     render();
   }catch(e){ document.getElementById('estado').textContent='No se pudo cargar el catálogo. Revisa la conexión.'; console.error(e); }
 }
@@ -277,7 +277,7 @@ function render(){
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}${btnSp}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}${(p.min>1)?` · mín. ${p.min}`:''}</div>
+      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}${(p.min>1)?` · mín. ${p.min}`:''}${(p.mul>1)?` · de ${p.mul} en ${p.mul}`:''}</div>
       <div class="qwrap">
         <div class="qty">
           <button type="button" onclick="stepPend(${p.id},-1)">−</button>
@@ -293,25 +293,36 @@ function render(){
 function actualizarContadores(){ const n=totalItems(); const a=document.getElementById('navN'); if(a)a.textContent=n; const b=document.getElementById('floatN'); if(b)b.textContent=n; }
 // Cantidad "pendiente" del selector (lo que el cliente elige ANTES de tocar Agregar).
 function minDe(id){ const p=PRODUCTOS.find(x=>x.id===id); return Math.max(1, (p&&Number(p.min))||1); }
-function pendDe(id, disp){ const mn=minDe(id); let v=PEND[id]; if(v==null) v=(RESERVA[id]?RESERVA[id].cantidad:mn)||mn; if(v<mn) v=mn; if(disp!=null) v=Math.min(v, Math.max(mn,disp)); return Math.max(mn, v); }
+function mulDe(id){ const p=PRODUCTOS.find(x=>x.id===id); return Math.max(1, (p&&Number(p.mul))||1); }
+// Menor cantidad válida = el menor múltiplo de la caja que llega al mínimo.
+function minEfectivo(id){ const mn=minDe(id), ml=mulDe(id); return Math.ceil(mn/ml)*ml; }
+// Ajusta cualquier número a una cantidad VÁLIDA: múltiplo de la caja, ≥ mínimo, ≤ lo disponible.
+function snapCant(id, val, disp){
+  const ml=mulDe(id), me=minEfectivo(id);
+  let c=Math.round((parseInt(val)||me)/ml)*ml;   // al múltiplo de caja más cercano
+  if(c<me) c=me;
+  if(disp!=null && disp>=0 && c>disp){ c=Math.floor(disp/ml)*ml; } // no pasar del stock, bajando a caja entera
+  if(c<ml) c=ml;
+  return c;
+}
+function pendDe(id, disp){ let v=PEND[id]; if(v==null) v=(RESERVA[id]?RESERVA[id].cantidad:minEfectivo(id)); return snapCant(id, v, disp); }
 function setPend(id, val){
   const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
-  const disp=dispDe(p); const mn=minDe(id);
-  let c=parseInt(val)||mn; if(c<mn)c=mn; if(c>disp)c=disp>0?disp:mn;
+  const disp=dispDe(p);
+  let c=snapCant(id, val, disp);
   PEND[id]=c;
   const inp=document.getElementById('pend-'+id); if(inp) inp.value=c; // actualiza sin re-render (no pierde el foco)
 }
 // El + y el − leen el número ACTUAL y suman/restan desde ahí (uno por toque, sin trabarse).
-function stepPend(id, delta){ setPend(id, pendDe(id) + delta); }
+function stepPend(id, dir){ setPend(id, pendDe(id) + (dir<0?-1:1)*mulDe(id)); }
 // Agregar: pone al carrito la cantidad elegida en el selector (la fija, no suma de a uno).
 function agregar(id){
   const p=PRODUCTOS.find(x=>x.id===id); if(!p) return;
-  const disp=dispDe(p); const mn=minDe(id);
+  const disp=dispDe(p); const me=minEfectivo(id); const ml=mulDe(id);
   if(disp<=0){ alert('"'+p.nombre+'" se agotó.'); return; }
-  if(disp<mn){ alert('El mínimo de "'+p.nombre+'" es '+mn+' y ahora no hay suficiente.'); return; }
+  const maxCajas=Math.floor(disp/ml)*ml;
+  if(maxCajas<me){ alert('Ahora no hay suficiente de "'+p.nombre+'" para el pedido mínimo.'); return; }
   let c=pendDe(id, disp);
-  if(c<mn){ c=mn; }
-  if(c>disp){ c=disp; alert('Ya no hay más disponible de "'+p.nombre+'".'); }
   RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c};
   PEND[id]=c;
   actualizarContadores();
@@ -323,8 +334,8 @@ function agregar(id){
   if(add){ add.classList.add('in'); }
 }
 // Fijar cantidad directamente desde el catálogo (permite escribir el número)
-function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let c=Math.max(0, parseInt(val)||0); const disp=dispDe(p); const mn=minDe(id); if(c>disp){ alert('Ya no hay más disponible de "'+p.nombre+'".'); c=disp; } if(c>0 && c<mn){ c=mn; if(c>disp)c=disp; } if(c===0)delete RESERVA[id]; else { if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; } actualizarContadores(); render(); }
-function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); const mn=minDe(id); if(c>disp){ alert('Ya no hay más disponible.'); c=disp; } if(c>0 && c<mn){ c=mn; if(c>disp)c=disp; } if(c===0)delete RESERVA[id]; else RESERVA[id].cantidad=c; actualizarContadores(); render(); pintarReserva(); }
+function setCantidadCat(id, val){ const p=PRODUCTOS.find(x=>x.id===id); if(!p)return; let raw=Math.max(0, parseInt(val)||0); const disp=dispDe(p); if(raw===0){ delete RESERVA[id]; actualizarContadores(); render(); return; } let c=snapCant(id, raw, disp); if(RESERVA[id])RESERVA[id].cantidad=c; else RESERVA[id]={id,nombre:p.nombre,precio:p.precio,cantidad:c}; actualizarContadores(); render(); }
+function setCantidad(id,c){ const p=PRODUCTOS.find(x=>x.id===id); if(!RESERVA[id]||!p)return; c=Math.max(0,c); const disp=dispDe(p); if(c===0){ delete RESERVA[id]; } else { RESERVA[id].cantidad=snapCant(id,c,disp); } actualizarContadores(); render(); pintarReserva(); }
 function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,0); }
 function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
 
