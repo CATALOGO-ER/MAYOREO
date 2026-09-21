@@ -277,7 +277,7 @@ function render(){
     return `<div class="prod">${ph}<div class="pb">
       <div class="nm">${p.nombre}${btnSp}</div>
       <div class="pr"><small>Precio mayoreo</small>${money(p.precio)}</div>
-      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}${(p.min>1)?` · mín. ${p.min}`:''}${(p.mul>1)?` · de ${p.mul} en ${p.mul}`:''}</div>
+      <div class="stk" id="stk-${p.id}">Disponible${en?` · en tu reserva: ${en}`:''}</div>
       <div class="qwrap">
         <div class="qty">
           <button type="button" onclick="stepPend(${p.id},-1)">−</button>
