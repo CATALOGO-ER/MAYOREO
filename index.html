@@ -149,7 +149,7 @@
   <div class="sec-head"><h2>Cómo se reserva</h2></div>
   <div class="pasos">
     <div class="paso"><div class="num">1</div><h3>Arma tu pedido</h3><p>Busca en el catálogo y agrega lo que necesitas.</p></div>
-    <div class="paso"><div class="num">2</div><h3>Envía la reserva</h3><p>Entra con tu cuenta y manda el pedido.</p></div>
+    <div class="paso"><div class="num">2</div><h3>Envía la reserva</h3><p>Escribe tu nombre y teléfono, y manda el pedido. Sin cuenta ni contraseña.</p></div>
     <div class="paso"><div class="num">3</div><h3>Recoge y paga</h3><p>Recoges en Camagüey, Centro Comercial La Caridad, Estrella Roja. Te escribimos por WhatsApp con la hora.</p></div>
   </div>
 </div></section>
@@ -176,12 +176,6 @@
   <header><h3>🛒 Tu carrito</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
   <div class="body" id="reservaItems"></div>
   <div class="foot" id="reservaFoot"></div>
-</aside>
-
-<!-- Panel cuenta -->
-<aside class="panel" id="panelCuenta">
-  <header><h3 id="cuentaTitulo">Mi cuenta</h3><button class="x" onclick="cerrarPaneles()">✕</button></header>
-  <div class="body" id="cuentaBody"></div>
 </aside>
 
 <!-- Panel mis reservas -->
@@ -340,7 +334,7 @@ function totalItems(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad,
 function totalDinero(){ return Object.values(RESERVA).reduce((s,x)=>s+x.cantidad*x.precio,0); }
 
 function abrirPanel(id){ document.getElementById('overlay').style.display='block'; document.getElementById(id).classList.add('open'); }
-function cerrarPaneles(){ document.getElementById('overlay').style.display='none'; ['panelReserva','panelCuenta','panelMis','panelSpecs'].forEach(x=>document.getElementById(x).classList.remove('open')); }
+function cerrarPaneles(){ document.getElementById('overlay').style.display='none'; ['panelReserva','panelMis','panelSpecs'].forEach(x=>{const el=document.getElementById(x); if(el) el.classList.remove('open');}); }
 
 function abrirReserva(){ pintarReserva(); abrirPanel('panelReserva'); }
 function pintarReserva(){
